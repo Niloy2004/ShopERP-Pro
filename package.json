@@ -1,0 +1,51 @@
+{
+  "name": "ro-erp",
+  "version": "1.0.0",
+  "description": "Healthy Appliances - RO Water Purifier Shop Management ERP",
+  "main": "electron/main.js",
+  "author": "Niloy Goswami",
+  "private": true,
+  "scripts": {
+    "postinstall": "electron-rebuild -w better-sqlite3",
+    "dev": "concurrently -k \"vite\" \"npm:electron:dev\"",
+    "electron:dev": "wait-on tcp:5173 && cross-env NODE_ENV=development electron .",
+    "build": "vite build",
+    "electron:build": "npm run build && electron-builder",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.3.0",
+    "pdfkit": "^0.15.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "recharts": "^2.12.7",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^3.7.1",
+    "@vitejs/plugin-react": "^4.3.1",
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "electron": "^31.3.0",
+    "electron-builder": "^24.13.3",
+    "vite": "^5.4.1",
+    "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.nrwebwork.roerp",
+    "productName": "Healthy Appliances ERP",
+    "files": ["dist/**/*", "electron/**/*", "package.json"],
+    "asar": true,
+    "asarUnpack": ["node_modules/better-sqlite3/**/*"],
+    "directories": { "buildResources": "build" },
+    "forceCodeSigning": false,
+    "win": {
+      "target": "nsis",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "compression": "maximum"
+    }
+  }
+}
