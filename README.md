@@ -1,116 +1,254 @@
-# Healthy Appliances ERP
+# 🛒 ShopERP-Pro
 
-A desktop management system built for a real RO water purifier shop — handling purchases, sales, stock, profit tracking, customer relationships, and after-sales service in one offline-first application.
+> A modern desktop ERP (Enterprise Resource Planning) application built with **React**, **Electron**, and **SQLite** to efficiently manage retail and business operations from a single platform.
 
-Built solo, end to end, and actively used by the business it was built for.
-
-> **Tech stack note:** This is an **Electron + React + SQLite** desktop application — not a MERN stack project (no MongoDB, no Express/REST API). It uses Electron's IPC layer instead of HTTP for the frontend↔backend bridge, and a local SQLite database instead of a networked one. See [Architecture](#architecture) below.
-
----
-
-## Screenshots
-
-*(Add a few screenshots here — Dashboard, Sell screen, and an invoice PDF work well)*
+![React](https://img.shields.io/badge/React-19-blue?logo=react)
+![Electron](https://img.shields.io/badge/Electron-Desktop-47848F?logo=electron)
+![SQLite](https://img.shields.io/badge/SQLite-Database-003B57?logo=sqlite)
+![License](https://img.shields.io/badge/License-MIT-green)
 
 ---
 
-## Features
+# 📖 Overview
 
-**Core modules**
-- 📊 **Dashboard** — daily sales/purchases, low-stock alerts, upcoming service reminders, AMC renewals
-- 📥 **Purchase** — vendor stock entry with automatic inventory updates and a vendor ledger
-- 🧾 **Sell** — point-of-sale billing with auto-generated PDF invoices and automatic stock deduction
-- 📦 **Stock** — inventory management with manual adjustments and Excel/CSV bulk import
-- 📈 **P&L** — profit & loss reporting with date-range filters and charts
-- 👤 **Customer CRM** — full customer profiles, purchase/service history, and a credit ledger for tracking dues
+**ShopERP** is a powerful desktop ERP solution designed to simplify day-to-day business operations. It enables businesses to manage inventory, sales, billing, customers, employees, and financial reports through an intuitive desktop interface.
 
-**Auth & access control**
-- Password authentication with bcrypt hashing
-- Persistent login sessions
-- Role-based UI restrictions (Owner / Staff / Technician see different things)
+Built with **Electron** and **React**, the application combines the flexibility of modern web technologies with the performance of a native desktop application. The system works completely offline using SQLite while delivering a fast, responsive, and secure user experience.
 
-**Business logic**
-- Customer credit ledger — tracks who owes what, supports partial payments, auto-applies payments to the oldest invoice
-- Every invoice shows account status (previous due / no due) automatically
-- Service due-date tracking with configurable reminder windows
-- One-click WhatsApp send for invoices and service reminders (via `wa.me` deep links — no paid API required)
-- Local database backup/restore
+---
 
-## Architecture
+# ✨ Key Features
+
+## 📊 Dashboard
+- Business overview
+- Sales analytics
+- Revenue insights
+- Performance metrics
+
+## 📦 Inventory Management
+- Product management
+- Stock tracking
+- Low stock alerts
+- Category management
+
+## 🧾 Billing & Sales
+- Invoice generation
+- Sales records
+- Purchase management
+- Order tracking
+
+## 👥 Customer Management
+- Customer database
+- Purchase history
+- Contact management
+- Customer analytics
+
+## 👨‍💼 Employee Management
+- Employee records
+- Role management
+- Attendance tracking
+- Access permissions
+
+## 💰 Finance
+- Income tracking
+- Expense management
+- Profit & Loss reports
+- Financial summaries
+
+## 📈 Reports
+- Sales reports
+- Inventory reports
+- Customer reports
+- Business analytics
+
+## 🔐 Authentication
+- Secure Login
+- User Roles
+- Permission Management
+
+---
+
+# 🛠 Tech Stack
+
+## Frontend
+
+- React.js
+- JavaScript (ES6+)
+- HTML5
+- CSS3
+- Vite
+
+## Desktop
+
+- Electron.js
+
+## Database
+
+- SQLite
+- Better-SQLite3
+
+## Development Tools
+
+- Node.js
+- npm
+- Git
+- GitHub
+- VS Code
+
+---
+
+# 📂 Project Structure
 
 ```
-┌─────────────────────────┐
-│   React UI (renderer)   │   src/
-└───────────┬─────────────┘
-            │ IPC (contextBridge)
-┌───────────▼─────────────┐
-│  Electron main process  │   electron/
-│  (business logic)       │
-└───────────┬─────────────┘
-            │
-┌───────────▼─────────────┐
-│   SQLite (better-sqlite3)│   local .db file
-└──────────────────────────┘
+ShopERP
+│
+├── electron/
+│   ├── main.js
+│   └── preload.js
+│
+├── src/
+│   ├── assets/
+│   ├── components/
+│   ├── pages/
+│   ├── layouts/
+│   ├── hooks/
+│   ├── services/
+│   ├── database/
+│   ├── utils/
+│   ├── App.jsx
+│   └── main.jsx
+│
+├── public/
+├── package.json
+└── README.md
 ```
 
-No server, no network calls except for the optional WhatsApp link and PDF/Excel handling — the app runs fully offline.
+---
 
-## Tech Stack
+# 🚀 Getting Started
 
-| Layer | Choice |
-|---|---|
-| UI | React 18 + Vite |
-| Desktop shell | Electron |
-| Database | SQLite (`better-sqlite3`) |
-| Auth | `bcryptjs` |
-| PDF generation | `pdfkit` |
-| Excel/CSV import | `xlsx` (SheetJS) |
-| Charts | Recharts |
-
-## Getting Started
+## Clone the Repository
 
 ```bash
-git clone https://github.com/<your-username>/healthy-appliances-erp.git
-cd healthy-appliances-erp
+git clone https://github.com/yourusername/shop-erp.git
+```
+
+## Navigate to the Project
+
+```bash
+cd shop-erp
+```
+
+## Install Dependencies
+
+```bash
 npm install
+```
+
+## Run Development Server
+
+```bash
 npm run dev
 ```
 
-Default login on first run: `admin` / `changeme` (change immediately via Settings).
-
-### Building a distributable
+## Launch Desktop Application
 
 ```bash
-npm run electron:build
+npm run electron
 ```
 
-## Project Structure
+---
+
+# 📸 Screenshots
+
+> Add screenshots of the Dashboard, Inventory, Billing, and Reports here.
 
 ```
-ro-erp/
-├── electron/
-│   ├── main.js        — window lifecycle
-│   ├── preload.js      — IPC bridge exposed to the renderer
-│   ├── db.js             — SQLite schema + migrations
-│   └── handlers.js     — all business logic, one section per module
-├── src/
-│   ├── App.jsx           — shell: header + sidebar + page routing
-│   ├── permissions.js   — role → page access map
-│   ├── components/      — shared UI (Header, Sidebar, Modal)
-│   ├── pages/              — one file per module
-│   └── styles/global.css
-└── dev-scripts/            — developer-only maintenance scripts (not shipped in builds)
+Dashboard
+Inventory
+Sales
+Customers
+Reports
 ```
 
-## Known Limitations
+---
 
-Being upfront about what this doesn't do, rather than overselling it:
+# 🎯 Project Goals
 
-- No cloud sync — each installation has its own local database
-- WhatsApp sending requires two clicks (open chat, attach PDF) — there's no free way to fully automate this without a paid WhatsApp Business API
-- No multi-branch support — built for a single shop location
-- No mobile app
+- Simplify business management
+- Improve productivity
+- Reduce manual paperwork
+- Maintain accurate inventory
+- Generate professional reports
+- Provide a seamless desktop experience
 
-## Author
+---
 
-Built by **Niloy Goswami** — [GitHub](https://github.com/Niloy2004) · [LinkedIn](https://linkedin.com/in/niloy-goswami)
+# 🔒 Security
+
+- Local SQLite database
+- Secure authentication
+- Role-based access control
+- Offline-first architecture
+
+---
+
+# 🌟 Future Improvements
+
+- Barcode Scanner Integration
+- GST Invoice Support
+- Cloud Backup & Restore
+- Multi-Shop Support
+- PDF Invoice Export
+- Data Synchronization
+- Email Notifications
+- Advanced Analytics Dashboard
+
+---
+
+# 🤝 Contributing
+
+Contributions are welcome.
+
+1. Fork the repository
+2. Create your feature branch
+
+```bash
+git checkout -b feature/NewFeature
+```
+
+3. Commit your changes
+
+```bash
+git commit -m "Add New Feature"
+```
+
+4. Push the branch
+
+```bash
+git push origin feature/NewFeature
+```
+
+5. Open a Pull Request
+
+---
+
+# 📄 License
+
+This project is licensed under the MIT License.
+
+---
+
+# 👨‍💻 Author
+
+## Niloy Goswami
+
+**Frontend Developer | React Developer | Electron Developer**
+
+- 🌐 Portfolio: *Coming Soon*
+- 💼 LinkedIn: *Coming Soon*
+- 💻 GitHub: https://github.com/Niloy2004
+
+---
+
+## ⭐ If you like this project, don't forget to give it a Star!
