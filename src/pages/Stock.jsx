@@ -6,12 +6,26 @@ const CATEGORIES = ['RO Unit', 'Filter', 'Membrane', 'Spare', 'Accessory'];
 export default function Stock() {
   const [items, setItems] = useState([]);
   const [showAdd, setShowAdd] = useState(false);
+  const [editItem, setEditItem] = useState(null);
   const [adjustItem, setAdjustItem] = useState(null);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
 
   const load = () => window.api.items.list().then(setItems);
   useEffect(() => { load(); }, []);
+
+  const deleteItem = async (item) => {
+    const sure = confirm(
+      `Permanently delete "${item.name}"?\n\n` +
+      `This cannot be undone. If this item was ever used in a past purchase or sale, ` +
+      `those old invoice/purchase records will also lose that line item (their totals will ` +
+      `no longer match the items shown).\n\n` +
+      `Type OK to confirm you understand and still want to permanently delete it.`
+    );
+    if (!sure) return;
+    await window.api.items.delete(item.id);
+    load();
+  };
 
   const handleImport = async () => {
     setImporting(true);
@@ -73,7 +87,11 @@ export default function Stock() {
                 <td>{i.reorder_level}</td>
                 <td>₹{i.cost_price}</td>
                 <td>₹{i.sell_price}</td>
-                <td><button className="btn btn-ghost" onClick={() => setAdjustItem(i)}>Adjust</button></td>
+                <td style={{ display: 'flex', gap: 6 }}>
+                  <button className="btn btn-ghost" onClick={() => setEditItem(i)}>Edit</button>
+                  <button className="btn btn-ghost" onClick={() => setAdjustItem(i)}>Adjust</button>
+                  <button className="btn btn-ghost" style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }} onClick={() => deleteItem(i)}>Delete</button>
+                </td>
               </tr>
             ))}
             {items.length === 0 && <tr><td colSpan={8} className="page-sub">No items yet — add your first item.</td></tr>}
@@ -82,23 +100,31 @@ export default function Stock() {
       </div>
 
       {showAdd && <AddItemForm onClose={() => setShowAdd(false)} onSaved={() => { setShowAdd(false); load(); }} />}
+      {editItem && <AddItemForm existing={editItem} onClose={() => setEditItem(null)} onSaved={() => { setEditItem(null); load(); }} />}
       {adjustItem && <AdjustForm item={adjustItem} onClose={() => setAdjustItem(null)} onSaved={() => { setAdjustItem(null); load(); }} />}
     </div>
   );
 }
 
-function AddItemForm({ onClose, onSaved }) {
-  const [form, setForm] = useState({ name: '', sku: '', category: CATEGORIES[0], cost_price: 0, sell_price: 0, reorder_level: 5, qty_on_hand: 0 });
+function AddItemForm({ existing, onClose, onSaved }) {
+  const isEdit = !!existing;
+  const [form, setForm] = useState(existing
+    ? { name: existing.name, sku: existing.sku || '', category: existing.category || CATEGORIES[0], cost_price: existing.cost_price, sell_price: existing.sell_price, reorder_level: existing.reorder_level, qty_on_hand: existing.qty_on_hand }
+    : { name: '', sku: '', category: CATEGORIES[0], cost_price: 0, sell_price: 0, reorder_level: 5, qty_on_hand: 0 });
   const set = (k, v) => setForm({ ...form, [k]: v });
 
   const save = async () => {
     if (!form.name) return alert('Item name is required.');
-    await window.api.items.add(form);
+    if (isEdit) {
+      await window.api.items.update({ id: existing.id, name: form.name, sku: form.sku, category: form.category, cost_price: Number(form.cost_price), sell_price: Number(form.sell_price), reorder_level: Number(form.reorder_level) });
+    } else {
+      await window.api.items.add(form);
+    }
     onSaved();
   };
 
   return (
-    <Modal title="Add Stock Item" onClose={onClose} width={480}>
+    <Modal title={isEdit ? `Edit Item — ${existing.name}` : 'Add Stock Item'} onClose={onClose} width={480}>
       <div className="field"><label>Item name</label><input value={form.name} onChange={e => set('name', e.target.value)} /></div>
       <div className="grid-2">
         <div className="field"><label>SKU / Model</label><input value={form.sku} onChange={e => set('sku', e.target.value)} /></div>
@@ -114,12 +140,17 @@ function AddItemForm({ onClose, onSaved }) {
         <div className="field"><label>Selling price</label><input type="number" value={form.sell_price} onChange={e => set('sell_price', e.target.value)} /></div>
       </div>
       <div className="grid-2">
-        <div className="field"><label>Opening quantity</label><input type="number" value={form.qty_on_hand} onChange={e => set('qty_on_hand', e.target.value)} /></div>
+        {!isEdit && <div className="field"><label>Opening quantity</label><input type="number" value={form.qty_on_hand} onChange={e => set('qty_on_hand', e.target.value)} /></div>}
         <div className="field"><label>Reorder threshold</label><input type="number" value={form.reorder_level} onChange={e => set('reorder_level', e.target.value)} /></div>
       </div>
+      {isEdit && (
+        <div className="page-sub" style={{ marginBottom: 8 }}>
+          To change how much is currently in stock, use "Adjust" instead — this form only edits the item's details.
+        </div>
+      )}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary" onClick={save}>Save Item</button>
+        <button className="btn btn-primary" onClick={save}>{isEdit ? 'Save Changes' : 'Save Item'}</button>
       </div>
     </Modal>
   );

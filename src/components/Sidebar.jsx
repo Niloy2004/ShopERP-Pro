@@ -8,6 +8,7 @@ const NAV = [
   { key: 'stock', label: 'Stock', icon: '▤' },
   { key: 'pnl', label: 'P&L', icon: '📈' },
   { key: 'crm', label: 'Customer CRM', icon: '☺' },
+  { key: 'expenses', label: 'Shop Expenses', icon: '₹' },
   { key: 'settings', label: 'Settings', icon: '⚙' }
 ];
 

@@ -37,7 +37,7 @@ export default function Dashboard({ onNavigate }) {
         </div>
       </div>
 
-      <div className="grid-4" style={{ marginBottom: 20 }}>
+      <div className="grid-4" style={{ marginBottom: 12 }}>
         <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => onNavigate('sell')}>
           <div className="stat-label">Today's Sales</div>
           <div className="stat-value">₹{data.todaysSales.total.toLocaleString('en-IN')}</div>
@@ -48,10 +48,18 @@ export default function Dashboard({ onNavigate }) {
           <div className="stat-value">₹{data.todaysPurchases.total.toLocaleString('en-IN')}</div>
           <div className="stat-sub">{data.todaysPurchases.count} entr(y/ies)</div>
         </div>
+        <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => onNavigate('expenses')}>
+          <div className="stat-label">Today's Expenses</div>
+          <div className="stat-value">₹{(data.todaysExpenses?.total || 0).toLocaleString('en-IN')}</div>
+          <div className="stat-sub">{data.todaysExpenses?.count || 0} entr(y/ies)</div>
+        </div>
         <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => onNavigate('crm')}>
           <div className="stat-label">New Customers Today</div>
           <div className="stat-value">{data.newCustomers.count}</div>
         </div>
+      </div>
+
+      <div className="grid-4" style={{ marginBottom: 20 }}>
         <div className="stat-card">
           <div className="stat-label">Upcoming Services</div>
           <div className="stat-value">{data.upcomingServices?.length || 0}</div>

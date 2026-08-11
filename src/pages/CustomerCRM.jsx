@@ -19,6 +19,17 @@ export default function CustomerCRM() {
 
   const totalOutstanding = dues.reduce((s, d) => s + d.balance_due, 0);
 
+  const deleteCustomer = async (customer) => {
+    const sure = confirm(
+      `Permanently delete "${customer.name}"?\n\n` +
+      `This cannot be undone. Their past invoices, payments, and service history are kept ` +
+      `for your records, but will no longer show this customer's name attached.`
+    );
+    if (!sure) return;
+    await window.api.customers.delete(customer.id);
+    load();
+  };
+
   const handleImport = async () => {
     setImporting(true);
     setImportResult(null);
@@ -104,7 +115,10 @@ export default function CustomerCRM() {
                 <td>{c.phone}</td>
                 <td><AmcBadge status={c.amc_status} /></td>
                 <td>{c.amc_renewal_date || '—'}</td>
-                <td><button className="btn btn-ghost" onClick={() => setProfileCustomer(c)}>View Profile</button></td>
+                <td style={{ display: 'flex', gap: 6 }}>
+                  <button className="btn btn-ghost" onClick={() => setProfileCustomer(c)}>View Profile</button>
+                  <button className="btn btn-ghost" style={{ color: 'var(--danger)', borderColor: 'var(--danger)' }} onClick={() => deleteCustomer(c)}>Delete</button>
+                </td>
               </tr>
             ))}
             {customers.length === 0 && <tr><td colSpan={5} className="page-sub">No customers found.</td></tr>}

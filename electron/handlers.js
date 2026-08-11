@@ -45,6 +45,34 @@ function registerHandlers() {
     return { ok: true };
   });
 
+  // ---------- GLOBAL SEARCH ----------
+  ipcMain.handle('search:global', (e, query) => {
+    const q = String(query || '').trim();
+    if (q.length < 2) return { customers: [], sales: [], items: [] };
+    const like = `%${q}%`;
+
+    const customers = db.prepare(`
+      SELECT id, name, phone FROM customers
+      WHERE name LIKE ? OR phone LIKE ?
+      ORDER BY name LIMIT 5
+    `).all(like, like);
+
+    const sales = db.prepare(`
+      SELECT s.id, s.invoice_no, s.date, s.total_amount, c.name as customer_name
+      FROM sales s LEFT JOIN customers c ON c.id = s.customer_id
+      WHERE s.invoice_no LIKE ? OR c.name LIKE ?
+      ORDER BY s.date DESC LIMIT 5
+    `).all(like, like);
+
+    const items = db.prepare(`
+      SELECT id, name, sku, qty_on_hand FROM items
+      WHERE name LIKE ? OR sku LIKE ?
+      ORDER BY name LIMIT 5
+    `).all(like, like);
+
+    return { customers, sales, items };
+  });
+
   // ---------- DASHBOARD ----------
   ipcMain.handle('dashboard:summary', () => {
     const today = new Date().toISOString().slice(0, 10);
@@ -55,6 +83,10 @@ function registerHandlers() {
 
     const todaysPurchases = db.prepare(
       `SELECT COALESCE(SUM(total_amount),0) total, COUNT(*) count FROM purchases WHERE date(date) = date(?)`
+    ).get(today);
+
+    const todaysExpenses = db.prepare(
+      `SELECT COALESCE(SUM(amount),0) total, COUNT(*) count FROM expenses WHERE date(date) = date(?)`
     ).get(today);
 
     const newCustomers = db.prepare(
@@ -95,7 +127,7 @@ function registerHandlers() {
       ) ORDER BY ts DESC LIMIT 15
     `).all();
 
-    return { todaysSales, todaysPurchases, newCustomers, pendingServices, stockAlerts, amcDue, upcomingServices, recentActivity };
+    return { todaysSales, todaysPurchases, todaysExpenses, newCustomers, pendingServices, stockAlerts, amcDue, upcomingServices, recentActivity };
   });
 
   // ---------- VENDORS ----------
@@ -105,11 +137,25 @@ function registerHandlers() {
     const info = stmt.run(vendor.name, vendor.phone || '', vendor.address || '');
     return { id: info.lastInsertRowid };
   });
+  ipcMain.handle('vendors:update', (e, vendor) => {
+    db.prepare('UPDATE vendors SET name=?, phone=?, address=? WHERE id=?')
+      .run(vendor.name, vendor.phone || '', vendor.address || '', vendor.id);
+    return { ok: true };
+  });
   ipcMain.handle('vendors:ledger', (e, vendorId) => {
     return db.prepare(`
       SELECT id, date, total_amount, amount_paid, payment_status
       FROM purchases WHERE vendor_id = ? ORDER BY date DESC
     `).all(vendorId);
+  });
+  ipcMain.handle('vendors:delete', (e, id) => {
+    // Keep past purchase records (financial history) but detach them from the deleted vendor
+    const tx = db.transaction(() => {
+      db.prepare('UPDATE purchases SET vendor_id = NULL WHERE vendor_id = ?').run(id);
+      db.prepare('DELETE FROM vendors WHERE id = ?').run(id);
+    });
+    tx();
+    return { ok: true };
   });
 
   // ---------- ITEMS / STOCK ----------
@@ -126,6 +172,19 @@ function registerHandlers() {
       .run(item.name, item.sku, item.category, item.cost_price, item.sell_price, item.reorder_level, item.id);
     return { ok: true };
   });
+  ipcMain.handle('items:delete', (e, id) => {
+    // Permanent delete, always — including cascading removal from any past purchase/sale line items
+    // that reference this item (required because foreign key enforcement is on). Historical purchase/
+    // sale totals are NOT recalculated, so old invoice totals may no longer match their remaining line items.
+    const tx = db.transaction(() => {
+      db.prepare('DELETE FROM sale_items WHERE item_id = ?').run(id);
+      db.prepare('DELETE FROM purchase_items WHERE item_id = ?').run(id);
+      db.prepare('DELETE FROM stock_adjustments WHERE item_id = ?').run(id);
+      db.prepare('DELETE FROM items WHERE id = ?').run(id);
+    });
+    tx();
+    return { ok: true };
+  });
   ipcMain.handle('stock:adjust', (e, { item_id, qty_change, reason }) => {
     const tx = db.transaction(() => {
       db.prepare('UPDATE items SET qty_on_hand = qty_on_hand + ? WHERE id = ?').run(qty_change, item_id);
@@ -139,6 +198,37 @@ function registerHandlers() {
   });
 
   // ---------- PURCHASE ----------
+  ipcMain.handle('purchase:get', (e, purchaseId) => {
+    const purchase = db.prepare('SELECT * FROM purchases WHERE id = ?').get(purchaseId);
+    if (!purchase) return null;
+    const items = db.prepare(`SELECT pi.*, i.name as item_name FROM purchase_items pi
+      JOIN items i ON i.id = pi.item_id WHERE pi.purchase_id = ?`).all(purchaseId);
+    return { purchase, items };
+  });
+  ipcMain.handle('purchase:update', (e, payload) => {
+    const { id, vendor_id, date, payment_status, amount_paid, invoice_ref, notes, items } = payload;
+    const oldItems = db.prepare('SELECT * FROM purchase_items WHERE purchase_id = ?').all(id);
+    const total_amount = items.reduce((s, it) => s + it.qty * it.unit_cost, 0);
+
+    const tx = db.transaction(() => {
+      const reverseStock = db.prepare('UPDATE items SET qty_on_hand = qty_on_hand - ? WHERE id = ?');
+      oldItems.forEach(oi => reverseStock.run(oi.qty, oi.item_id));
+
+      db.prepare('DELETE FROM purchase_items WHERE purchase_id = ?').run(id);
+
+      const insertPI = db.prepare('INSERT INTO purchase_items (purchase_id, item_id, qty, unit_cost) VALUES (?,?,?,?)');
+      const bumpStock = db.prepare('UPDATE items SET qty_on_hand = qty_on_hand + ? WHERE id = ?');
+      items.forEach(it => {
+        insertPI.run(id, it.item_id, it.qty, it.unit_cost);
+        bumpStock.run(it.qty, it.item_id);
+      });
+
+      db.prepare(`UPDATE purchases SET vendor_id=?, date=?, total_amount=?, payment_status=?, amount_paid=?, invoice_ref=?, notes=? WHERE id=?`)
+        .run(vendor_id, date, total_amount, payment_status || 'Due', amount_paid || 0, invoice_ref || '', notes || '', id);
+    });
+    tx();
+    return { ok: true, total_amount };
+  });
   ipcMain.handle('purchase:create', (e, payload) => {
     const { vendor_id, date, payment_status, amount_paid, invoice_ref, notes, items } = payload;
     const total_amount = items.reduce((s, it) => s + it.qty * it.unit_cost, 0);
@@ -169,6 +259,17 @@ function registerHandlers() {
   ipcMain.handle('purchase:items', (e, purchaseId) => {
     return db.prepare(`SELECT pi.*, i.name as item_name FROM purchase_items pi
       JOIN items i ON i.id = pi.item_id WHERE pi.purchase_id = ?`).all(purchaseId);
+  });
+  ipcMain.handle('purchase:delete', (e, id) => {
+    const items = db.prepare('SELECT item_id, qty FROM purchase_items WHERE purchase_id = ?').all(id);
+    const tx = db.transaction(() => {
+      const reverseStock = db.prepare('UPDATE items SET qty_on_hand = qty_on_hand - ? WHERE id = ?');
+      items.forEach(it => reverseStock.run(it.qty, it.item_id));
+      db.prepare('DELETE FROM purchase_items WHERE purchase_id = ?').run(id);
+      db.prepare('DELETE FROM purchases WHERE id = ?').run(id);
+    });
+    tx();
+    return { ok: true };
   });
 
   // ---------- SELL ----------
@@ -221,6 +322,119 @@ function registerHandlers() {
     return db.prepare(`SELECT si.*, i.name as item_name FROM sale_items si
       JOIN items i ON i.id = si.item_id WHERE si.sale_id = ?`).all(saleId);
   });
+  ipcMain.handle('sell:get', (e, saleId) => {
+    const sale = db.prepare('SELECT * FROM sales WHERE id = ?').get(saleId);
+    if (!sale) return null;
+    const items = db.prepare(`SELECT si.*, i.name as item_name FROM sale_items si
+      JOIN items i ON i.id = si.item_id WHERE si.sale_id = ?`).all(saleId);
+    return { sale, items };
+  });
+  ipcMain.handle('sell:delete', (e, id) => {
+    const items = db.prepare('SELECT item_id, qty FROM sale_items WHERE sale_id = ?').all(id);
+    const tx = db.transaction(() => {
+      // give the stock back, since this sale never "happened" once deleted
+      const restoreStock = db.prepare('UPDATE items SET qty_on_hand = qty_on_hand + ? WHERE id = ?');
+      items.forEach(it => restoreStock.run(it.qty, it.item_id));
+
+      // keep payment history and service reminders, just detach them from the deleted sale
+      db.prepare('UPDATE customer_payments SET sale_id = NULL WHERE sale_id = ?').run(id);
+      db.prepare('UPDATE installations SET sale_id = NULL WHERE sale_id = ?').run(id);
+
+      db.prepare('DELETE FROM sale_items WHERE sale_id = ?').run(id);
+      db.prepare('DELETE FROM sales WHERE id = ?').run(id);
+    });
+    tx();
+    return { ok: true };
+  });
+
+  ipcMain.handle('sell:checkStockForEdit', (e, { saleId, items }) => {
+    // when editing, the sale's OLD quantities are effectively "available again" first
+    const oldItems = db.prepare('SELECT item_id, qty FROM sale_items WHERE sale_id = ?').all(saleId);
+    const restoreMap = {};
+    oldItems.forEach(oi => { restoreMap[oi.item_id] = (restoreMap[oi.item_id] || 0) + oi.qty; });
+
+    const shortages = [];
+    for (const it of items) {
+      const row = db.prepare('SELECT qty_on_hand, name FROM items WHERE id = ?').get(it.item_id);
+      const effectiveAvailable = (row?.qty_on_hand || 0) + (restoreMap[it.item_id] || 0);
+      if (!row || effectiveAvailable < it.qty) {
+        shortages.push({ item_id: it.item_id, name: row?.name, available: effectiveAvailable, requested: it.qty });
+      }
+    }
+    return shortages;
+  });
+  ipcMain.handle('sell:update', (e, payload) => {
+    const { id, customer_id, date, discount, payment_mode, items, amount_paid } = payload;
+    const existing = db.prepare('SELECT * FROM sales WHERE id = ?').get(id);
+    if (!existing) return { ok: false, error: 'Sale not found' };
+
+    const oldItems = db.prepare('SELECT * FROM sale_items WHERE sale_id = ?').all(id);
+    const gross = items.reduce((s, it) => s + it.qty * it.unit_price, 0);
+    const total_amount = Math.max(0, gross - (discount || 0));
+    const paid = payment_mode === 'Credit' ? Number(amount_paid || 0) : total_amount;
+
+    const tx = db.transaction(() => {
+      // restore stock from the sale's old items first
+      const restoreStmt = db.prepare('UPDATE items SET qty_on_hand = qty_on_hand + ? WHERE id = ?');
+      oldItems.forEach(oi => restoreStmt.run(oi.qty, oi.item_id));
+
+      // clear old line items
+      db.prepare('DELETE FROM sale_items WHERE sale_id = ?').run(id);
+
+      // insert corrected line items and deduct stock accordingly
+      const insertSI = db.prepare('INSERT INTO sale_items (sale_id, item_id, qty, unit_price) VALUES (?,?,?,?)');
+      const deductStmt = db.prepare('UPDATE items SET qty_on_hand = qty_on_hand - ? WHERE id = ?');
+      items.forEach(it => {
+        insertSI.run(id, it.item_id, it.qty, it.unit_price);
+        deductStmt.run(it.qty, it.item_id);
+      });
+
+      db.prepare(`UPDATE sales SET customer_id=?, date=?, total_amount=?, discount=?, payment_mode=?, amount_paid=? WHERE id=?`)
+        .run(customer_id, date, total_amount, discount || 0, payment_mode || 'Cash', paid, id);
+    });
+    tx();
+    return { ok: true, total_amount };
+  });
+
+  // ---------- EXPENSES ----------
+  ipcMain.handle('expenses:create', (e, exp) => {
+    const info = db.prepare(`INSERT INTO expenses (date, category, description, amount) VALUES (?,?,?,?)`)
+      .run(exp.date, exp.category || 'Miscellaneous', exp.description || '', Number(exp.amount));
+    return { id: info.lastInsertRowid };
+  });
+  ipcMain.handle('expenses:list', (e, filters = {}) => {
+    let q = 'SELECT * FROM expenses WHERE 1=1';
+    const params = [];
+    if (filters.from) { q += ' AND date(date) >= date(?)'; params.push(filters.from); }
+    if (filters.to) { q += ' AND date(date) <= date(?)'; params.push(filters.to); }
+    if (filters.category) { q += ' AND category = ?'; params.push(filters.category); }
+    q += ' ORDER BY date DESC, id DESC';
+    return db.prepare(q).all(...params);
+  });
+  ipcMain.handle('expenses:delete', (e, id) => {
+    db.prepare('DELETE FROM expenses WHERE id = ?').run(id);
+    return { ok: true };
+  });
+  ipcMain.handle('expenses:update', (e, exp) => {
+    db.prepare('UPDATE expenses SET date=?, category=?, description=?, amount=? WHERE id=?')
+      .run(exp.date, exp.category || 'Miscellaneous', exp.description || '', Number(exp.amount), exp.id);
+    return { ok: true };
+  });
+  ipcMain.handle('expenses:summary', (e, { from, to } = {}) => {
+    const today = new Date().toISOString().slice(0, 10);
+    const todayTotal = db.prepare(`SELECT COALESCE(SUM(amount),0) v FROM expenses WHERE date(date) = date(?)`).get(today).v;
+    let rangeTotal = 0;
+    let byCategory = [];
+    if (from && to) {
+      rangeTotal = db.prepare(`SELECT COALESCE(SUM(amount),0) v FROM expenses WHERE date(date) BETWEEN date(?) AND date(?)`).get(from, to).v;
+      byCategory = db.prepare(`
+        SELECT category, COALESCE(SUM(amount),0) total
+        FROM expenses WHERE date(date) BETWEEN date(?) AND date(?)
+        GROUP BY category ORDER BY total DESC
+      `).all(from, to);
+    }
+    return { todayTotal, rangeTotal, byCategory };
+  });
 
   // ---------- P&L ----------
   ipcMain.handle('pnl:report', (e, { from, to }) => {
@@ -266,6 +480,18 @@ function registerHandlers() {
   ipcMain.handle('customers:update', (e, c) => {
     db.prepare(`UPDATE customers SET name=?, phone=?, address=?, alt_contact=?, amc_status=?, amc_renewal_date=?, notes=? WHERE id=?`)
       .run(c.name, c.phone, c.address, c.alt_contact, c.amc_status, c.amc_renewal_date, c.notes, c.id);
+    return { ok: true };
+  });
+  ipcMain.handle('customers:delete', (e, id) => {
+    // Keep past sales/payments/service history (financial + service records) but detach from the deleted customer
+    const tx = db.transaction(() => {
+      db.prepare('UPDATE sales SET customer_id = NULL WHERE customer_id = ?').run(id);
+      db.prepare('UPDATE customer_payments SET customer_id = NULL WHERE customer_id = ?').run(id);
+      db.prepare('UPDATE installations SET customer_id = NULL WHERE customer_id = ?').run(id);
+      db.prepare('UPDATE service_requests SET customer_id = NULL WHERE customer_id = ?').run(id);
+      db.prepare('DELETE FROM customers WHERE id = ?').run(id);
+    });
+    tx();
     return { ok: true };
   });
   ipcMain.handle('customers:history', (e, customerId) => {

@@ -8,6 +8,7 @@ import Sell from './pages/Sell.jsx';
 import Stock from './pages/Stock.jsx';
 import PnL from './pages/PnL.jsx';
 import CustomerCRM from './pages/CustomerCRM.jsx';
+import Expenses from './pages/Expenses.jsx';
 import Settings from './pages/Settings.jsx';
 import { pagesForRole } from './permissions.js';
 
@@ -18,6 +19,7 @@ const PAGES = {
   stock: Stock,
   pnl: PnL,
   crm: CustomerCRM,
+  expenses: Expenses,
   settings: Settings
 };
 
@@ -79,7 +81,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <Header businessName={businessName} alertCount={alertCount} />
+      <Header businessName={businessName} alertCount={alertCount} onNavigate={safeNavigate} />
       <Sidebar current={page} onNavigate={safeNavigate} onLogout={handleLogout} role={user.role} />
       <main className="app-main">
         {canViewCurrentPage ? (
