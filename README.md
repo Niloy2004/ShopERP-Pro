@@ -1,254 +1,101 @@
-# 🛒 ShopERP-Pro
+# Healthy Appliances ERP
 
-> A modern desktop ERP (Enterprise Resource Planning) application built with **React**, **Electron**, and **SQLite** to efficiently manage retail and business operations from a single platform.
+A desktop management app for a small RO water purifier shop. It covers purchases, sales and invoicing, stock, profit tracking, customer dues, service reminders and daily shop expenses, and it works fully offline.
 
-![React](https://img.shields.io/badge/React-19-blue?logo=react)
-![Electron](https://img.shields.io/badge/Electron-Desktop-47848F?logo=electron)
-![SQLite](https://img.shields.io/badge/SQLite-Database-003B57?logo=sqlite)
-![License](https://img.shields.io/badge/License-MIT-green)
+> **Tech stack:** Electron + React + SQLite. This is a desktop app, not a MERN project: there is no MongoDB and no Express/REST API. The React UI talks to the Electron main process over IPC, and data lives in a local SQLite file.
 
----
+## Screenshots
 
-# 📖 Overview
+*(Add screenshots here: Dashboard, Sell screen, P&L page, an invoice PDF)*
 
-**ShopERP** is a powerful desktop ERP solution designed to simplify day-to-day business operations. It enables businesses to manage inventory, sales, billing, customers, employees, and financial reports through an intuitive desktop interface.
+## Features
 
-Built with **Electron** and **React**, the application combines the flexibility of modern web technologies with the performance of a native desktop application. The system works completely offline using SQLite while delivering a fast, responsive, and secure user experience.
+**Daily work**
+- **Dashboard**: today's sales, purchases and expenses, low-stock alerts, upcoming service reminders, AMC renewals
+- **Purchase**: record stock bought from vendors; stock updates automatically; add a brand-new item right inside the purchase form; vendor ledger (total purchased, paid, balance due)
+- **Sell**: billing with searchable item picker, auto-numbered invoices, PDF invoice (multi-page safe), credit/partial payment, add a new customer while billing
+- **Stock**: items sold by Piece, Feet, Meter, Kg, Litre and more; manual adjustments; Excel/CSV import; duplicate-item warning
+- **Customer CRM**: profiles, purchase history, and a dues ledger that tracks who owes what and applies payments to the oldest invoice
+- **Shop Expenses**: rent, electricity, salary and other running costs, with date and category filters
 
----
+**Money**
+- **P&L**: revenue, cost of goods, gross profit, margin, **shop expenses and net profit** for any date range, with charts and CSV export
+- **Cost price** is a weighted average of everything bought, recalculated from purchase history every time the app starts
+- Every invoice shows the customer's previous due (or "No Due")
 
-# ✨ Key Features
+**Housekeeping**
+- Edit and delete on every record (stock is reversed/restored correctly on sales and purchases)
+- Global search across customers, invoices and items
+- Login with bcrypt-hashed passwords, persistent session, role-based access (Owner / Staff / Technician)
+- Service due dates set at sale time, with reminders on the Dashboard
+- WhatsApp click-to-send for invoices and reminders (opens the chat via `wa.me`; no paid API)
+- Local database backup and restore
 
-## 📊 Dashboard
-- Business overview
-- Sales analytics
-- Revenue insights
-- Performance metrics
-
-## 📦 Inventory Management
-- Product management
-- Stock tracking
-- Low stock alerts
-- Category management
-
-## 🧾 Billing & Sales
-- Invoice generation
-- Sales records
-- Purchase management
-- Order tracking
-
-## 👥 Customer Management
-- Customer database
-- Purchase history
-- Contact management
-- Customer analytics
-
-## 👨‍💼 Employee Management
-- Employee records
-- Role management
-- Attendance tracking
-- Access permissions
-
-## 💰 Finance
-- Income tracking
-- Expense management
-- Profit & Loss reports
-- Financial summaries
-
-## 📈 Reports
-- Sales reports
-- Inventory reports
-- Customer reports
-- Business analytics
-
-## 🔐 Authentication
-- Secure Login
-- User Roles
-- Permission Management
-
----
-
-# 🛠 Tech Stack
-
-## Frontend
-
-- React.js
-- JavaScript (ES6+)
-- HTML5
-- CSS3
-- Vite
-
-## Desktop
-
-- Electron.js
-
-## Database
-
-- SQLite
-- Better-SQLite3
-
-## Development Tools
-
-- Node.js
-- npm
-- Git
-- GitHub
-- VS Code
-
----
-
-# 📂 Project Structure
+## Architecture
 
 ```
-ShopERP
-│
-├── electron/
-│   ├── main.js
-│   └── preload.js
-│
-├── src/
-│   ├── assets/
-│   ├── components/
-│   ├── pages/
-│   ├── layouts/
-│   ├── hooks/
-│   ├── services/
-│   ├── database/
-│   ├── utils/
-│   ├── App.jsx
-│   └── main.jsx
-│
-├── public/
-├── package.json
-└── README.md
+React UI (renderer)           src/
+        |  IPC (contextBridge)
+Electron main process         electron/   (all business logic)
+        |
+SQLite via better-sqlite3     local .db file
 ```
 
----
+## Tech stack
 
-# 🚀 Getting Started
+| Layer | Choice |
+|---|---|
+| UI | React 18 + Vite |
+| Desktop shell | Electron |
+| Database | SQLite (`better-sqlite3`) |
+| Auth | `bcryptjs` |
+| PDF invoices | `pdfkit` |
+| Excel/CSV import | `xlsx` |
+| Charts | Recharts |
 
-## Clone the Repository
+## Getting started
 
 ```bash
-git clone https://github.com/yourusername/shop-erp.git
-```
-
-## Navigate to the Project
-
-```bash
-cd shop-erp
-```
-
-## Install Dependencies
-
-```bash
+git clone https://github.com/Niloy2004/healthy-appliances-erp.git
+cd healthy-appliances-erp
 npm install
-```
-
-## Run Development Server
-
-```bash
 npm run dev
 ```
 
-## Launch Desktop Application
+First login: `admin` / `changeme`. Change the password in Settings straight away.
+
+`better-sqlite3` is a native module. If `npm install` fails on Windows, use a Node LTS version (22.x) and make sure the C++ build tools are available.
+
+### Build a Windows installer
 
 ```bash
-npm run electron
+npm run electron:build
 ```
 
----
+The installer is written to `dist/`.
 
-# 📸 Screenshots
-
-> Add screenshots of the Dashboard, Inventory, Billing, and Reports here.
+## Project structure
 
 ```
-Dashboard
-Inventory
-Sales
-Customers
-Reports
+electron/
+  main.js        window lifecycle
+  preload.js     IPC bridge exposed to the UI
+  db.js          SQLite schema and migrations
+  handlers.js    business logic, one section per module
+src/
+  App.jsx        shell: header, sidebar, page routing
+  permissions.js role to page access map
+  components/    Header, Sidebar, Modal, ItemPicker
+  pages/         one file per module
 ```
 
----
+## Known limitations
 
-# 🎯 Project Goals
+- Each installation has its own local database; there is no cloud sync
+- WhatsApp sending takes two clicks (open chat, attach the PDF); fully automatic sending needs the paid WhatsApp Business API
+- Role restrictions are enforced in the UI only, which suits a single-shop machine but is not a network security boundary
+- Single shop location, desktop only
 
-- Simplify business management
-- Improve productivity
-- Reduce manual paperwork
-- Maintain accurate inventory
-- Generate professional reports
-- Provide a seamless desktop experience
+## Author
 
----
-
-# 🔒 Security
-
-- Local SQLite database
-- Secure authentication
-- Role-based access control
-- Offline-first architecture
-
----
-
-# 🌟 Future Improvements
-
-- Barcode Scanner Integration
-- GST Invoice Support
-- Cloud Backup & Restore
-- Multi-Shop Support
-- PDF Invoice Export
-- Data Synchronization
-- Email Notifications
-- Advanced Analytics Dashboard
-
----
-
-# 🤝 Contributing
-
-Contributions are welcome.
-
-1. Fork the repository
-2. Create your feature branch
-
-```bash
-git checkout -b feature/NewFeature
-```
-
-3. Commit your changes
-
-```bash
-git commit -m "Add New Feature"
-```
-
-4. Push the branch
-
-```bash
-git push origin feature/NewFeature
-```
-
-5. Open a Pull Request
-
----
-
-# 📄 License
-
-This project is licensed under the MIT License.
-
----
-
-# 👨‍💻 Author
-
-## Niloy Goswami
-
-**Frontend Developer | React Developer | Electron Developer**
-
-- 🌐 Portfolio: *Coming Soon*
-- 💼 LinkedIn: *Coming Soon*
-- 💻 GitHub: https://github.com/Niloy2004
-
----
-
-## ⭐ If you like this project, don't forget to give it a Star!
+Niloy Goswami · [GitHub](https://github.com/Niloy2004) · [LinkedIn](https://linkedin.com/in/niloy-goswami)

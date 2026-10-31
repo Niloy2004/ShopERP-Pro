@@ -1,0 +1,24 @@
+# Dependencies — reinstalled via npm install, don't commit
+node_modules/
+
+# Build output — regenerated via npm run build / electron:build
+dist/
+
+# Local database files — should never be committed (contains real business data if run here)
+*.db
+*.db-shm
+*.db-wal
+session.json
+
+# OS/editor junk
+.DS_Store
+Thumbs.db
+.vscode/
+*.log
+
+# Developer-only maintenance scripts — not for public repo
+dev-scripts/
+
+# Env files if ever added later
+.env
+.env.local

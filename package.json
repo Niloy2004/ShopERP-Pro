@@ -35,10 +35,18 @@
   "build": {
     "appId": "com.nrwebwork.roerp",
     "productName": "Healthy Appliances ERP",
-    "files": ["dist/**/*", "electron/**/*", "package.json"],
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
     "asar": true,
-    "asarUnpack": ["node_modules/better-sqlite3/**/*"],
-    "directories": { "buildResources": "build" },
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**/*"
+    ],
+    "directories": {
+      "buildResources": "build"
+    },
     "forceCodeSigning": false,
     "win": {
       "target": "nsis",
